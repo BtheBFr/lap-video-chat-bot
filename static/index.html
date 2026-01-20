@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Lap Video Call</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial; background: #1a1a1a; color: white; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .video-container { display: flex; gap: 20px; margin: 20px 0; }
+        video { width: 100%; border: 2px solid #333; border-radius: 10px; }
+        .controls { display: flex; gap: 10px; justify-content: center; margin: 20px 0; }
+        button { padding: 15px 25px; border: none; border-radius: 10px; background: #007bff; color: white; font-size: 16px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        button.red { background: #dc3545; }
+        button.green { background: #28a745; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 Lap Video Call</h1>
+        
+        <div class="video-container">
+            <div>
+                <h3>Твое видео</h3>
+                <video id="localVideo" autoplay muted></video>
+            </div>
+            <div>
+                <h3>Участник</h3>
+                <video id="remoteVideo" autoplay></video>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="startBtn" class="green">▶️ Начать звонок</button>
+            <button id="hangupBtn" class="red" disabled>📞 Завершить</button>
+            <button id="toggleVideo">📹 Камера Вкл/Выкл</button>
+            <button id="toggleAudio">🎤 Микрофон Вкл/Выкл</button>
+            <button id="screenShare">🖥️ Демонстрация экрана</button>
+            <button id="remoteControl">🖱️ Разрешить управление</button>
+        </div>
+
+        <div id="status">Готов к звонку...</div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

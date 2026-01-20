@@ -15,8 +15,3 @@ Telegram бот для видеозвонков с мини-приложение
 - HTML/CSS/JS (Мини-приложение)
 - PostgreSQL (Supabase)
 
-## Установка:
-```bash
-git clone https://github.com/ваш-username/lap-video-chat-bot.git
-cd lap-video-chat-bot/bot
-pip install -r requirements.txt

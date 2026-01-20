@@ -1,11 +1,12 @@
-FROM python:3.9
+FROM python:3.9-slim
 
 WORKDIR /app
 
+# Копируем все файлы
 COPY . .
 
-COPY bot/.env .env 2>/dev/null || :
+# Устанавливаем зависимости
+RUN pip install --no-cache-dir -r bot/requirements.txt
 
-RUN pip install -r bot/requirements.txt
-
-CMD python bot/main.py
+# Запускаем бота
+CMD cd bot && python main.py

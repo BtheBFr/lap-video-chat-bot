@@ -2,14 +2,14 @@ import os
 import logging
 import asyncio
 from aiogram import Bot, Dispatcher, types
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.contrib.fsm_storage.memory import MemoryStorage  # ← ВАЖНО!
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
 from dotenv import load_dotenv
 
-from database import db  # Импортируем нашу базу данных
+from database import db
 
 # Загрузка переменных окружения
 load_dotenv()

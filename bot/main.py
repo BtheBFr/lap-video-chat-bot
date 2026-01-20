@@ -29,6 +29,11 @@ bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
+# ==================== СОСТОЯНИЯ ====================
+class AdminStates(StatesGroup):
+    waiting_ban_id = State()
+    waiting_unban_id = State()
+
 # ==================== КЛАВИАТУРЫ ====================
 def get_phone_keyboard():
     return ReplyKeyboardMarkup(
@@ -43,29 +48,36 @@ def get_admin_keyboard():
     return InlineKeyboardMarkup(row_width=2).add(
         InlineKeyboardButton("📋 Заявки", callback_data="admin_requests"),
         InlineKeyboardButton("👥 Все пользователи", callback_data="admin_all_users"),
-        InlineKeyboardButton("🚫 Забанить по ID", callback_data="admin_ban"),
-        InlineKeyboardButton("✅ Разбанить по ID", callback_data="admin_unban"),
-        InlineKeyboardButton("🔄 Обновить", callback_data="admin_refresh")
+        InlineKeyboardButton("🚫 Забанить", callback_data="admin_ban"),
+        InlineKeyboardButton("✅ Разбанить", callback_data="admin_unban"),
+        InlineKeyboardButton("📊 Статистика", callback_data="admin_stats"),
+        InlineKeyboardButton("🏠 Главное меню", callback_data="user_main_menu")
     )
 
-def get_user_menu():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            ["📞 Чаты", "👥 Контакты"],
-            ["⚙️ Настройки", "🆘 Помощь"]
-        ],
-        resize_keyboard=True
+def get_user_menu(user_is_admin=False):
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        InlineKeyboardButton("📞 Чаты", callback_data="user_chats"),
+        InlineKeyboardButton("👥 Контакты", callback_data="user_contacts"),
+        InlineKeyboardButton("⚙️ Настройки", callback_data="user_settings"),
+        InlineKeyboardButton("🆘 Помощь", callback_data="user_help")
     )
+    if user_is_admin:
+        keyboard.add(InlineKeyboardButton("👨‍💻 Админ панель", callback_data="admin_panel"))
+    return keyboard
 
 # ==================== КОМАНДЫ ====================
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS
     
-    if user_id in ADMIN_IDS:
+    if is_admin:
+        # Админ видит и меню и админ-панель
         await message.answer(
-            "👨‍💻 Панель администратора Lap Video Chat",
-            reply_markup=get_admin_keyboard()
+            "👋 Добро пожаловать, администратор!\n\n"
+            "Вы можете использовать обычные функции или перейти в админ-панель.",
+            reply_markup=get_user_menu(user_is_admin=True)
         )
         return
     
@@ -77,7 +89,7 @@ async def cmd_start(message: types.Message):
         if status == "approved":
             await message.answer(
                 "🏠 Добро пожаловать в Lap Video Chat Bot!",
-                reply_markup=get_user_menu()
+                reply_markup=get_user_menu(user_is_admin=False)
             )
         elif status == "banned":
             await message.answer("🚫 Вы заблокированы в системе!")
@@ -88,7 +100,8 @@ async def cmd_start(message: types.Message):
             )
         else:
             await message.answer(
-                "❓ Неизвестный статус. Обратитесь к администратору."
+                "❓ Неизвестный статус. Обратитесь к администратору.",
+                reply_markup=get_user_menu(user_is_admin=False)
             )
     else:
         # Новый пользователь
@@ -106,29 +119,16 @@ async def cmd_admin(message: types.Message):
         reply_markup=get_admin_keyboard()
     )
 
-@dp.message_handler(commands=['stats'], user_id=ADMIN_IDS)
-async def cmd_stats(message: types.Message):
-    users = await db.get_all_users()
-    pending = len([u for u in users if u.get("status") == "pending"])
-    approved = len([u for u in users if u.get("status") == "approved"])
-    banned = len([u for u in users if u.get("status") == "banned"])
-    
-    stats_text = (
-        "📊 Статистика бота:\n"
-        f"👤 Всего пользователей: {len(users)}\n"
-        f"⏳ Ожидают: {pending}\n"
-        f"✅ Одобрено: {approved}\n"
-        f"🚫 Забанено: {banned}"
-    )
-    await message.answer(stats_text)
-
 # ==================== ОБРАБОТКА НОМЕРА ТЕЛЕФОНА ====================
 @dp.message_handler(content_types=['contact'])
 async def process_contact(message: types.Message):
     user_id = message.from_user.id
     
     if user_id in ADMIN_IDS:
-        await message.answer("Админам не нужно регистрироваться!")
+        await message.answer(
+            "Вы администратор! Используйте меню ниже.",
+            reply_markup=get_user_menu(user_is_admin=True)
+        )
         return
     
     # Проверяем есть ли уже заявка
@@ -138,13 +138,13 @@ async def process_contact(message: types.Message):
         if status == "pending":
             await message.answer(
                 "⏳ Ваша заявка уже отправлена и ожидает рассмотрения.",
-                reply_markup=types.ReplyKeyboardRemove()
+                reply_markup=get_user_menu(user_is_admin=False)
             )
             return
         elif status == "approved":
             await message.answer(
                 "✅ Вы уже одобрены! Используйте меню ниже.",
-                reply_markup=get_user_menu()
+                reply_markup=get_user_menu(user_is_admin=False)
             )
             return
     
@@ -182,12 +182,12 @@ async def process_contact(message: types.Message):
         await message.answer(
             "✅ Спасибо! Номер получен.\n"
             "⏳ Ожидайте одобрения администратора.",
-            reply_markup=types.ReplyKeyboardRemove()
+            reply_markup=get_user_menu(user_is_admin=False)
         )
     else:
         await message.answer(
             f"❌ Ошибка: {result}",
-            reply_markup=types.ReplyKeyboardRemove()
+            reply_markup=get_user_menu(user_is_admin=False)
         )
 
 # ==================== ОБРАБОТКА КНОПОК АДМИНА ====================
@@ -211,7 +211,7 @@ async def approve_user(callback_query: types.CallbackQuery):
                 "🎉 ВАША ЗАЯВКА ОДОБРЕНА!\n\n"
                 "Добро пожаловать в Lap Video Chat Bot!\n"
                 "Теперь вам доступны все функции.",
-                reply_markup=get_user_menu()
+                reply_markup=get_user_menu(user_is_admin=False)
             )
         except Exception as e:
             logger.error(f"Не удалось уведомить пользователя {user_id}: {e}")
@@ -266,6 +266,18 @@ async def reject_user(callback_query: types.CallbackQuery):
         await callback_query.answer("❌ Ошибка!")
 
 # ==================== АДМИН ПАНЕЛЬ ====================
+@dp.callback_query_handler(lambda c: c.data == 'admin_panel')
+async def admin_panel(callback_query: types.CallbackQuery):
+    if callback_query.from_user.id not in ADMIN_IDS:
+        await callback_query.answer("❌ Нет прав!")
+        return
+    
+    await callback_query.message.edit_text(
+        "👨‍💻 Панель администратора Lap Video Chat",
+        reply_markup=get_admin_keyboard()
+    )
+    await callback_query.answer()
+
 @dp.callback_query_handler(lambda c: c.data == 'admin_requests')
 async def show_requests(callback_query: types.CallbackQuery):
     if callback_query.from_user.id not in ADMIN_IDS:
@@ -275,20 +287,16 @@ async def show_requests(callback_query: types.CallbackQuery):
     pending_users = await db.get_pending_users()
     
     if not pending_users:
-        await callback_query.message.edit_text(
-            "📋 Список заявок пуст.",
-            reply_markup=get_admin_keyboard()
-        )
-        return
-    
-    text = "📋 Ожидающие заявки:\n\n"
-    for user in pending_users[:10]:
-        text += (
-            f"👤 {user.get('full_name', 'Без имени')}\n"
-            f"📱 +{user.get('phone_number', 'Нет номера')}\n"
-            f"🆔 {user.get('telegram_id', 'Нет ID')}\n"
-            f"━━━━━━━━━━━━━━━━\n"
-        )
+        text = "📋 Список заявок пуст."
+    else:
+        text = "📋 Ожидающие заявки:\n\n"
+        for user in pending_users[:10]:
+            text += (
+                f"👤 {user.get('full_name', 'Без имени')}\n"
+                f"📱 +{user.get('phone_number', 'Нет номера')}\n"
+                f"🆔 {user.get('telegram_id', 'Нет ID')}\n"
+                f"━━━━━━━━━━━━━━━━\n"
+            )
     
     await callback_query.message.edit_text(
         text,
@@ -305,20 +313,16 @@ async def show_all_users(callback_query: types.CallbackQuery):
     all_users = await db.get_all_users()
     
     if not all_users:
-        await callback_query.message.edit_text(
-            "👥 Пользователей пока нет.",
-            reply_markup=get_admin_keyboard()
-        )
-        return
-    
-    text = "👥 Все пользователи:\n\n"
-    for user in all_users[:15]:
-        status_icon = "✅" if user.get("status") == "approved" else "⏳" if user.get("status") == "pending" else "🚫"
-        text += (
-            f"{status_icon} {user.get('full_name', 'Без имени')}\n"
-            f"📱 +{user.get('phone_number', 'Нет')} | 🆔 {user.get('telegram_id', 'Нет')}\n"
-            f"━━━━━━━━━━━━━━━━\n"
-        )
+        text = "👥 Пользователей пока нет."
+    else:
+        text = "👥 Все пользователи:\n\n"
+        for user in all_users[:15]:
+            status_icon = "✅" if user.get("status") == "approved" else "⏳" if user.get("status") == "pending" else "🚫"
+            text += (
+                f"{status_icon} {user.get('full_name', 'Без имени')}\n"
+                f"📱 +{user.get('phone_number', 'Нет')} | 🆔 {user.get('telegram_id', 'Нет')}\n"
+                f"━━━━━━━━━━━━━━━━\n"
+            )
     
     await callback_query.message.edit_text(
         text[:4000],
@@ -326,58 +330,201 @@ async def show_all_users(callback_query: types.CallbackQuery):
     )
     await callback_query.answer(f"Всего: {len(all_users)}")
 
-@dp.callback_query_handler(lambda c: c.data == 'admin_refresh')
-async def refresh_admin(callback_query: types.CallbackQuery):
+@dp.callback_query_handler(lambda c: c.data == 'admin_ban')
+async def start_ban_user(callback_query: types.CallbackQuery):
     if callback_query.from_user.id not in ADMIN_IDS:
         await callback_query.answer("❌ Нет прав!")
         return
     
+    await AdminStates.waiting_ban_id.set()
+    await callback_query.message.edit_text(
+        "🚫 Введите ID пользователя для блокировки:",
+        reply_markup=InlineKeyboardMarkup().add(
+            InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")
+        )
+    )
+    await callback_query.answer()
+
+@dp.callback_query_handler(lambda c: c.data == 'admin_unban')
+async def start_unban_user(callback_query: types.CallbackQuery):
+    if callback_query.from_user.id not in ADMIN_IDS:
+        await callback_query.answer("❌ Нет прав!")
+        return
+    
+    await AdminStates.waiting_unban_id.set()
+    await callback_query.message.edit_text(
+        "✅ Введите ID пользователя для разблокировки:",
+        reply_markup=InlineKeyboardMarkup().add(
+            InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")
+        )
+    )
+    await callback_query.answer()
+
+@dp.message_handler(state=AdminStates.waiting_ban_id)
+async def process_ban_id(message: types.Message, state: FSMContext):
+    try:
+        user_id = int(message.text)
+        success = await db.ban_user(user_id)
+        
+        if success:
+            await message.answer(f"✅ Пользователь {user_id} заблокирован!")
+            
+            # Уведомляем пользователя если возможно
+            try:
+                await bot.send_message(user_id, "🚫 Вы были заблокированы администратором.")
+            except:
+                pass
+        else:
+            await message.answer(f"❌ Не удалось заблокировать пользователя {user_id}")
+    except ValueError:
+        await message.answer("❌ Неверный формат ID. Введите число.")
+    finally:
+        await state.finish()
+
+@dp.message_handler(state=AdminStates.waiting_unban_id)
+async def process_unban_id(message: types.Message, state: FSMContext):
+    try:
+        user_id = int(message.text)
+        success = await db.unban_user(user_id)
+        
+        if success:
+            await message.answer(f"✅ Пользователь {user_id} разблокирован!")
+            
+            # Уведомляем пользователя если возможно
+            try:
+                await bot.send_message(user_id, "✅ Вы были разблокированы администратором.")
+            except:
+                pass
+        else:
+            await message.answer(f"❌ Не удалось разблокировать пользователя {user_id}")
+    except ValueError:
+        await message.answer("❌ Неверный формат ID. Введите число.")
+    finally:
+        await state.finish()
+
+@dp.callback_query_handler(lambda c: c.data == 'admin_stats', state="*")
+async def admin_stats(callback_query: types.CallbackQuery):
+    if callback_query.from_user.id not in ADMIN_IDS:
+        await callback_query.answer("❌ Нет прав!")
+        return
+    
+    users = await db.get_all_users()
+    pending = len([u for u in users if u.get("status") == "pending"])
+    approved = len([u for u in users if u.get("status") == "approved"])
+    banned = len([u for u in users if u.get("status") == "banned"])
+    
+    stats_text = (
+        "📊 Статистика бота:\n"
+        f"👤 Всего пользователей: {len(users)}\n"
+        f"⏳ Ожидают: {pending}\n"
+        f"✅ Одобрено: {approved}\n"
+        f"🚫 Забанено: {banned}"
+    )
+    
+    await callback_query.message.edit_text(
+        stats_text,
+        reply_markup=get_admin_keyboard()
+    )
+    await callback_query.answer()
+
+@dp.callback_query_handler(lambda c: c.data == 'cancel_action', state="*")
+async def cancel_action(callback_query: types.CallbackQuery, state: FSMContext):
+    if callback_query.from_user.id not in ADMIN_IDS:
+        await callback_query.answer("❌ Нет прав!")
+        return
+    
+    await state.finish()
     await callback_query.message.edit_text(
         "👨‍💻 Панель администратора Lap Video Chat",
         reply_markup=get_admin_keyboard()
     )
-    await callback_query.answer("🔄 Обновлено!")
+    await callback_query.answer("❌ Отменено")
+
+@dp.callback_query_handler(lambda c: c.data == 'user_main_menu')
+async def user_main_menu(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    is_admin = user_id in ADMIN_IDS
+    
+    await callback_query.message.edit_text(
+        "🏠 Главное меню" if not is_admin else "👋 Добро пожаловать, администратор!",
+        reply_markup=get_user_menu(user_is_admin=is_admin)
+    )
+    await callback_query.answer()
 
 # ==================== МЕНЮ ПОЛЬЗОВАТЕЛЯ ====================
-@dp.message_handler(lambda m: m.text == "📞 Чаты")
-async def show_chats(message: types.Message):
-    user_id = message.from_user.id
+@dp.callback_query_handler(lambda c: c.data == 'user_chats')
+async def user_chats(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
     user = await db.get_user(user_id)
     
     if not user or user.get("status") != "approved":
-        await message.answer("❌ Доступ запрещен!")
+        await callback_query.answer("❌ Доступ запрещен!")
         return
     
-    await message.answer(
+    await callback_query.message.edit_text(
         "📞 Ваши чаты:\n\n"
         "Эта функция будет доступна после настройки системы звонков.\n"
         "Сейчас можно:\n"
         "• Просматривать историю звонков\n"
         "• Создавать новые чаты\n"
-        "• Приглашать контакты"
+        "• Приглашать контактов",
+        reply_markup=get_user_menu(user_is_admin=user_id in ADMIN_IDS)
     )
+    await callback_query.answer()
 
-@dp.message_handler(lambda m: m.text == "👥 Контакты")
-async def show_contacts(message: types.Message):
-    user_id = message.from_user.id
+@dp.callback_query_handler(lambda c: c.data == 'user_contacts')
+async def user_contacts(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
     user = await db.get_user(user_id)
     
     if not user or user.get("status") != "approved":
-        await message.answer("❌ Доступ запрещен!")
+        await callback_query.answer("❌ Доступ запрещен!")
         return
     
-    await message.answer(
+    await callback_query.message.edit_text(
         "👥 Управление контактами:\n\n"
         "1. Добавить контакт - отправьте номер телефона\n"
         "2. Импортировать из телефонной книги\n"
         "3. Поиск контактов\n\n"
-        "📱 Чтобы добавить контакт, просто отправьте номер телефона в формате +79991234567"
+        "📱 Чтобы добавить контакт, просто отправьте номер телефона в формате +79991234567",
+        reply_markup=get_user_menu(user_is_admin=user_id in ADMIN_IDS)
     )
+    await callback_query.answer()
+
+@dp.callback_query_handler(lambda c: c.data == 'user_settings')
+async def user_settings(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    user = await db.get_user(user_id)
+    
+    if not user or user.get("status") != "approved":
+        await callback_query.answer("❌ Доступ запрещен!")
+        return
+    
+    await callback_query.message.edit_text(
+        "⚙️ Настройки:\n\n"
+        "• Уведомления\n"
+        "• Конфиденциальность\n"
+        "• Язык интерфейса\n"
+        "• Очистить историю",
+        reply_markup=get_user_menu(user_is_admin=user_id in ADMIN_IDS)
+    )
+    await callback_query.answer()
+
+@dp.callback_query_handler(lambda c: c.data == 'user_help')
+async def user_help(callback_query: types.CallbackQuery):
+    await callback_query.message.edit_text(
+        "🆘 Помощь:\n\n"
+        "• Как начать звонок?\n"
+        "• Как добавить контакт?\n"
+        "• Проблемы со звуком/видео\n"
+        "• Техническая поддержка: @LapVideoChatSupport",
+        reply_markup=get_user_menu(user_is_admin=callback_query.from_user.id in ADMIN_IDS)
+    )
+    await callback_query.answer()
 
 # ==================== ЗАПУСК БОТА ====================
 async def on_startup(dp):
     logger.info("✅ Lap Video Chat Bot запущен!")
-    # Уведомляем админов
     for admin_id in ADMIN_IDS:
         try:
             await bot.send_message(admin_id, "✅ Бот запущен и готов к работе!")

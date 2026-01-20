@@ -1,5 +1,5 @@
-aiogram==2.25.1
-python-dotenv==1.0.0
-supabase==1.0.3
-psycopg2-binary==2.9.9
-aiohttp==3.9.1
+aiogram
+python-dotenv
+supabase
+psycopg2-binary
+aiohttp

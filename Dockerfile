@@ -6,5 +6,7 @@ COPY . .
 
 RUN pip install --no-cache-dir -r bot/requirements.txt
 
-# УБИРАЕМ debug_env.py, запускаем только бота
-CMD cd bot && python main.py
+# Делаем скрипт исполняемым
+RUN chmod +x start.sh
+
+CMD ["./start.sh"]

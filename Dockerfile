@@ -6,5 +6,5 @@ COPY . .
 
 RUN pip install --no-cache-dir -r bot/requirements.txt
 
-# Запускаем отладку перед ботом
-CMD cd bot && python debug_env.py && echo "---" && python main.py
+# УБИРАЕМ debug_env.py, запускаем только бота
+CMD cd bot && python main.py
